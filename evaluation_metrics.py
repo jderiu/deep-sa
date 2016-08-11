@@ -1,6 +1,9 @@
 import numpy as np
 from collections import Counter
 import math
+import keras.backend as K
+from  keras.utils.np_utils import to_categorical
+
 
 def semeval_f1_taskA(y_truth,y_pred):
     neg_prec_up = 0
@@ -158,13 +161,48 @@ def semeval_f1_taskD(y_truth,y_pred):
     return overall/numTopics
 
 
+def semeval_f1_score(y_true, y_preds):
+    #hack to make sure that eq is 1 only where y_true and y_pred are both 1
+    y_ppred = K.zeros_like(y_true)
+    y_pred3 = K.T.set_subtensor(y_ppred[K.T.arange(y_true.shape[0]),K.argmax(y_preds, axis=-1)], 1)
+
+    y_true_tr = (y_true - 1)*2 + 1
+    y_pred_tr = (y_pred3 - 1)*3 + 1
+
+    eq = K.sum(K.equal(y_true_tr,y_pred_tr),axis= 0)
+
+    pp = 1.0*eq[2]
+    nn = 1.0*eq[0]
+    pred_cnt = K.sum(y_pred3, axis=0)
+    gold_cnt = K.sum(y_true,axis=0)
+
+    pred_p = 1.0*K.sum(pred_cnt[2])
+    pred_n = 1.0*K.sum(pred_cnt[0])
+
+    gold_p = 1.0*K.sum(gold_cnt[2])
+    gold_n = 1.0*K.sum(gold_cnt[0])
+
+    pi_p = K.T.switch(K.T.eq(pred_p, 0), 0,pp/pred_p)
+    rho_p = K.T.switch(K.T.eq(gold_p, 0), 0,pp/gold_p)
+
+    pi_n = K.T.switch(K.T.eq(pred_n, 0), 0, nn/pred_n)
+    rho_n = K.T.switch(K.T.eq(gold_n, 0), 0, nn/gold_n)
+
+    f1_p = K.T.switch(K.T.eq(pi_p+rho_p, 0), 0, 2*pi_p*rho_p/(pi_p+rho_p))
+    f1_n = K.T.switch(K.T.eq(pi_n+rho_n, 0), 0, 2*pi_n*rho_n/(pi_n+rho_n))
+    f1 = 0.5*(f1_n + f1_p)
+    return f1
+
+
 if __name__ == '__main__':
-    y_truth = np.array([2,2,2,0,2,0,0,0,2,2,2,2,0,2,2,2,2,0,2,0,2,0,0,2,2])
-    y_pred =  np.array([0,2,2,2,0,0,0,0,2,0,2,0,0,2,2,2,0,0,2,0,2,0,2,2,2])
-
-
-
+    y_truth = np.array([0,0,0,1,2,0,1,2])
+    y_pred =  np.array([2,0,2,2,0,2,2,2])
 
     print Counter(y_truth)
     print Counter(y_pred)
-    print semeval_f1_taskB(y_truth,y_pred)
+    print semeval_f1_taskA(y_truth,y_pred)
+
+    y_true = K.variable(value=to_categorical(y_truth,3))
+    y_pred = K.variable(value=to_categorical(y_pred,3))
+    print K.eval(semeval_f1_score(y_true,y_pred))
+    print K.eval(semeval_f1_score(y_true, y_pred))

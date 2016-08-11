@@ -7,7 +7,7 @@ import operator
 
 def preprocess_tweet(tweet):
     #lowercase and normalize urls
-    tweet = tweet.lower()
+    tweet = tweet.replace('\n','').lower()
     tweet = re.sub('((www\.[^\s]+)|(https?://[^\s]+)|(http?://[^\s]+))','<url>',tweet)
     #tweet = re.sub('@[^\s]+','<user>',tweet)
     #tweet = re.sub(r'#([^\s]+)', r'\1', tweet)
@@ -32,20 +32,12 @@ def read_emo(path):
     print max(emo_dict.iteritems(), key=operator.itemgetter(1))[0]
 
 
-def convert_sentiment(tweet,trim=True):
-    #given a tweet infer the sentiment by taking the sentiment of the smiley
-    #remove all tweets with mixed sentiment smileys
-    tweet = tweet.decode('utf-8','ignore')
-    sentiment = -1
-    for emo,label in emo_dict.iteritems():
-        emo_count = tweet.count(emo)
-        if emo_count > 0:
-            if sentiment == -1:
-                sentiment = label
-            elif sentiment != label:
-                sentiment = -np.inf
-            tweet = tweet.replace(emo,'')
-    return tweet.encode('utf-8'), sentiment
+def convert_sentiment(sentiment):
+    return {
+        "positive": 1,
+        "negative": 0,
+        "UNK": np.random.randint(3)
+    }.get(sentiment,1)
 
 UNKNOWN_WORD_IDX = 0
 
@@ -60,8 +52,9 @@ def convert2indices(data, alphabet, dummy_word_idx, max_sent_length=140):
         if len(sentence) > max_sent_length:
             print "Sentence length:",len(sentence)
             print sentence
+            sentence = sentence[:max_sent_length]
         for i, token in enumerate(sentence):
-            idx = alphabet.get(token, UNKNOWN_WORD_IDX)
+            idx,freq = alphabet.get(token, (UNKNOWN_WORD_IDX,0))
             ex[i] = idx
             if idx == UNKNOWN_WORD_IDX:
                 unknown_words += 1
@@ -72,7 +65,7 @@ def convert2indices(data, alphabet, dummy_word_idx, max_sent_length=140):
     return data_idx
 
 
-def store_file(f_in,f_out,alphabet,dummy_word_idx,sentiment_fname=None):
+def store_file(f_in,f_out,alphabet,dummy_word_idx,sentiment_fname=None,max_tweets=np.inf):
     #stores the tweets in batches so it fits in memory
     tknzr = TweetTokenizer(reduce_len=True)
     counter = 0
@@ -83,12 +76,13 @@ def store_file(f_in,f_out,alphabet,dummy_word_idx,sentiment_fname=None):
     batch_size = 500000
     tweet_batch = []
     sentiment_batch=[]
-    read_emo('emoscores')
+    read_emo('misc/emoscores.txt')
     with gzip.open(f_in,'r') as f:
-        for tweet in f:
-            tweet, sentiment = convert_sentiment(tweet)
-            if sentiment_fname and sentiment == -np.inf:
-                continue
+        for line in f:
+            splits = line.split('\t')
+            sentiment = convert_sentiment(splits[4])
+            tweet = splits[5]
+            tweet = tweet.decode('utf-8').encode('ascii','ignore')
             tweet = preprocess_tweet(tweet)
             tweet = tknzr.tokenize(tweet.decode('utf-8'))
             tweet_batch.append(tweet)
@@ -104,6 +98,8 @@ def store_file(f_in,f_out,alphabet,dummy_word_idx,sentiment_fname=None):
                 sentiment_batch=[]
             if (counter%1000000) == 0:
                 print "Elements processed:",counter
+            if counter > max_tweets:
+                break
     tweet_idx = convert2indices(tweet_batch,alphabet,dummy_word_idx)
     np.save(output,tweet_idx)
     np.save(output_sentiment,sentiment_batch)

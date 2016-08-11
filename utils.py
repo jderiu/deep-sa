@@ -194,6 +194,22 @@ def load_glove_vec(fname,words,delimiter,dim):
           print "W2V Count:",count
   return word_vecs
 
+def load_glove_vocabulary(fname,delimiter):
+    vocabulary = set()
+    with open(fname) as f:
+        count = 0
+        for line in f:
+            if line == "":
+                continue
+            splits = line.replace('\n', '').split(delimiter)
+            word = splits[0]
+            vocabulary.add(word)
+            count += 1
+            if count % 100000 == 0:
+                print "W2V Count:", count
+    return vocabulary
+
+
 TASK_A = '/mnt/sdd/home/sovarm/nrc-twitter/data/semeval-2015/SemEval2015-task10-test-A-input.txt'
 TASK_A_PROGRESS = '/mnt/sdd/home/sovarm/nrc-twitter/data/semeval-2015/SemEval2015-task10-test-A-input-progress.txt'
 
