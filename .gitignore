@@ -60,3 +60,13 @@ target/
 
 #Ipython Notebook
 .ipynb_checkpoints
+
+#Folder Content
+preprocessed_data/
+embeddings/
+results/
+smiley_tweets/
+misc/
+plots/
+urban_dict/
+model/
